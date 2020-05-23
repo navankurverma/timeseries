@@ -1,0 +1,377 @@
+---
+title: "Time Series Analysis using R"
+author: "Navankur Verma - navankurverma@gmail.com"
+date: "23/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 9, fig.height = 8)
+```
+
+## Libraries used:
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(forecast)
+library(TSA)
+library(lmtest)
+library(tseries)
+library(urca)
+library(fGarch)
+```
+```{r, eval=FALSE}
+library(forecast)
+library(TSA)
+library(lmtest)
+library(tseries)
+library(urca)
+library(fGarch)
+```
+
+## Analysis on Some random Time Series:
+
+```{r read data}
+all_ts =  read.csv("all_ts.csv")
+```
+
+### Series X
+
+```{r part (a)}
+tsdisplay(all_ts[,1])
+```
+
+As the ACF of TimeSeries is not decaying exponentially, so we must take its difference to make it stationary.
+
+```{r}
+seriesXdiff =  diff(all_ts[,1])
+tsdisplay(seriesXdiff)
+```
+
+After 1st Differencing ACF and PACF decays exponentially, hence the original TS X is having d=1.
+As we can see that ACF of differenced TS X is non null after lag 1, hence q = 1.
+And PACF just tails off, so p = 0.
+
+So the TS X is ARIMA(0,1,1)
+
+### Series Y
+
+```{r part (b)}
+tsdisplay(all_ts[,2])
+```
+
+For TS Y, ACF and PACF both decay exponentially, so it is not required to take its difference, d = 0.  
+ACF of TS Y is tailing off, so q = 0.
+PACF is non null for two lags, so p = 2.
+
+So the TS Y is ARIMA(2,0,0)
+
+### Parameter estimation of ARIMA models of Time Series X & Y
+
+```{r part (c)}
+modX = arima(all_ts[,1],order = c(0,1,1),include.mean = FALSE)
+modY =  arima(all_ts[,2],order = c(2,0,0),include.mean = FALSE)
+
+coeftest(modX)
+coeftest(modY)
+```
+
+In the estimated arima models of TS X & Y, p-values for each parameter are very less and hence the estimates are statistically significant.
+
+### Series Z
+
+```{r part (d)}
+tsdisplay(all_ts[,3])
+```
+
+For TS Z, ACF and PACF both decay exponentially, so it is not required to take its difference, d = 0.
+Both the ACF and PACF are tailing off, so p>0 and q>0. So we have to use build up approach to model this time series.
+
+### Parameter estimation of ARIMA models of Time Series Z
+
+```{r part (e)}
+modZ11 = arima(all_ts[,3],order = c(1,0,1),include.mean = FALSE)
+modZ12 = arima(all_ts[,3],order = c(1,0,2),include.mean = FALSE)
+modZ21 = arima(all_ts[,3],order = c(2,0,1),include.mean = FALSE)
+
+coeftest(modZ11)
+coeftest(modZ12)
+coeftest(modZ21)
+```
+
+In ARMA(1,0,2) & ARMA(2,0,1) one of the coefficient (ma2 & ar2 respectively) has large p-value hence we need to drop it and hence we choose the ARMA(1,0,1) model which has significant parameters.
+
+### Validation on the fitted models on Time Series Z
+
+First checking residuals for the ARIMA(1,0,1):
+
+```{r exercise2_part(a)}
+#step1
+plot(residuals(modZ11))
+
+# It looks much like a white noise.
+
+#step2
+qqnorm(residuals(modZ11))
+qqline(residuals(modZ11))
+
+shapiro.test(residuals(modZ11))
+```
+
+QQ Plot shows that residuals follow the normal behvaiour and the Shapiro-Wilk test gives the p-value which is greater than 0.05, i.e. we fail to reject null hyposthesis that residuals are normally distributed.
+
+```{r}
+#step3
+plot(fitted.values(modZ11),residuals(modZ11))
+```
+
+Scatterplot of fitted values and residuals show no pattern.
+
+```{r}
+#step4
+acf(residuals(modZ11))
+
+Box.test(residuals(modZ11), type=c("Ljung-Box") ,lag=12, fitdf=2)
+```
+
+ACF at lag 5 is nearly non null. But still theoretically we can say it is not required to increase q in ARIMA and Ljung-Box test also gives p-value greater than 0.05 which means there is no correlation in the residuals and this model is suitable.
+
+```{r}
+#step5
+pacf(residuals(modZ11))
+```
+
+PACF at lag 5 is just above the critical level, which suggests to increase p in ARIMA.
+
+Checking residuals for the ARIMA(2,0,0):
+
+```{r exercise2_part(b)}
+modZ2 = arima(all_ts[,3],order = c(2,0,0),include.mean = FALSE)
+
+#step1
+plot(residuals(modZ2))
+# It looks much like a white noise.
+
+#step2
+qqnorm(residuals(modZ2))
+qqline(residuals(modZ2))
+
+shapiro.test(residuals(modZ2))
+```
+
+QQ Plot follows the straight line and the Shapiro-Wilk test gives p-value which is greater than 0.05, so we can say that residuals are normally distributed.
+
+```{r}
+#step3
+plot(fitted.values(modZ2),residuals(modZ2))
+```
+
+Scatterplot of fitted values and residuals show no pattern.
+
+```{r}
+#step4
+acf(residuals(modZ2))
+
+Box.test(residuals(modZ2), type=c("Ljung-Box") ,lag=12, fitdf=2)
+```
+
+ACF at lags < 6 are all non null, so we might need to increase the q in ARIMA and Ljung-Box test also gives p-value much less than 0.05 which means there is some correlation left in the residuals which should be removed.
+```{r}
+#step5
+pacf(residuals(modZ2))
+```
+
+PACF at various lags are non null, so we might need to increase the p in ARIMA.
+
+### Fitting ARIMA with higher number of Auto Regressive Components:
+
+Fitting with ARIMA(10,0,0) on time series Z:
+
+```{r exercise3_part(a) }
+modZ10 = arima(all_ts[,3],order = c(10,0,0),include.mean = FALSE)
+
+coeftest(modZ10)
+```
+Significance test suggest that parameters ar1 to ar7 are signigicant as their p-values are much smaller.
+```{r}
+#step1
+plot(residuals(modZ10))
+
+# It looks much like a white noise.
+
+#step2
+qqnorm(residuals(modZ10))
+qqline(residuals(modZ10))
+
+shapiro.test(residuals(modZ10))
+```
+
+QQ Plot follows the straight line and the Shapiro-Wilk test gives p-value which is greater than 0.05, so we can say that residuals are normally distributed.
+```{r}
+#step3
+plot(fitted.values(modZ10),residuals(modZ10))
+```
+
+Scatterplot of fitted values and residuals show no pattern.
+
+```{r}
+#step4
+acf(residuals(modZ10))
+
+Box.test(residuals(modZ10), type=c("Ljung-Box") ,lag=20, fitdf=10)
+```
+
+ACF is null at every lag, so we dont need to increase the q in ARIMA and Ljung-Box test large p-value confirms that the residuals are independent and uncorrelated.
+
+```{r}
+#step5
+pacf(residuals(modZ10))
+```
+
+PACF is also null for each lag, which means we dont need to increase the p in ARIMA. The reason this model fits the time series quite well is because of invertibility. Any ARMA(p,q) model with roots of the MA polynomial less than 1 in absolute value may be written as AR(1) model. Thus for large p it is well approximated by an AR(p) model.
+
+```{r exercise_part(b)}
+plot(all_ts$Z,type = 'l', ylim = c(-6,6))
+lines(fitted.values(modZ10),type = 'l',col = 'red')
+```
+
+Plotting the fitted values suggests that model AR10 follows the original timeseries very well. But coeftest also suggests that parameters greater than ar7 are not significant but that is due to overfitting where the estimation becomes unstable and some coefficients are resulting into non significant.
+
+
+## Trend Stationarity:
+
+Time Series:Monthly U.S. average prescription costs for the months 08/1986 - 03/1992
+
+__Is it stationary?__
+
+```{r exercise1_partA}
+data("prescrip")
+
+tseries::adf.test(prescrip, k = 0)
+```
+p-value is greater than 0.05, so we fail to reject the null-hypothesis. There is a unit root and we need to take difference.
+
+__F-statistic:__
+
+$\phi_{3}$ test statistic for the test whether ($\alpha,\beta,\phi$) = ($\alpha,0,1$) in the model given by:
+
+$X_{t} = \alpha + \beta t  + \phi X_{t-1} + \epsilon_{t}$
+
+where $X_{t}$ is the average prescription cost in month $t$.
+
+```{r exercise1_partB}
+n = length(prescrip)
+tt = 2:n
+prescrip[-n]
+y = diff(prescrip)
+
+fit = lm(y~tt+prescrip[-n])
+yhat = fitted(fit)
+
+phi3 = sum((yhat-mean(y))^2)/2/(sum((y-yhat)^2)/64)
+phi3
+```
+
+```{r exercise1_partC}
+summary(ur.df(prescrip,type = 'trend', lags = 0))
+```
+
+Here we checked if Time series along with being difference stationary, does it also have any trend in it or not.
+
+## Seasonality
+
+Time Series: Monthly beer sales in millions of barrels, 01/1975 - 12/1990.
+
+```{r exercise2_partA}
+data(beersales)
+tsdisplay(beersales)
+adf.test(beersales)
+```
+The time series has a seasonal component, which can be seen directly and also from the ACF where correlation has a periodic nature with lags with periodicity of 12 . There is also an linear trend in Time Series. The p-value in the Augmented Dickey-Fuller test is less than 0.01 so we reject the null hypothesis that there is a unit root. Thus the series is not integrated.
+
+__Estimating trend by smoothing the series:__
+
+Since the ACF of the timeseries has periodicity of 12 lags, hence we can choose moving average of order 12.
+
+```{r exercise2_partB}
+TC = ma(beersales,12)
+tsdisplay(TC)
+```
+
+__Decompose the time series as an additive model:__
+
+```{r exercise2_partC}
+pseudo_s = (beersales - TC) - mean(beersales - TC,na.rm = TRUE)
+matrix_s = matrix(pseudo_s,nrow = 12)
+
+S = rowMeans(matrix_s, na.rm = TRUE)
+
+tsdisplay(rep(S,12))
+
+R = beersales - TC - S
+
+tsdisplay(R)
+```
+
+## ARIMA-GARCH
+
+Time Series: Daily returns of the google stock from 08/20/04 - 09/13/06
+
+```{r exercise3_partA}
+data("google")
+google = google - mean(google,na.rm = TRUE)
+
+tsdisplay(google)
+```
+
+There seems to be some points where the variations in the timeseries is quite large as compared to other periods.
+
+```{r}
+tseries::adf.test(google)
+```
+
+p-value less than 0.05, so we reject null hypothesis (w = 0 or phi = 1). So the timeseries is stationary and no need for differencing.
+
+From ACF and PACF it can be clearly seen that at all lags values are less than critical value. So we fit the (0,0,0) model.
+
+```{r exercise3_partB , fig.height= 4}
+modg = arima(google,order = c(0,0,0))
+McLeod.Li.test(y=residuals(modg))
+```
+
+At all lags the p-value is below critical value(0.05). We rejet the null hypothesis that there is no autocorrelation in residuals. Hence we conclude that there is some autocorrelation in residuals. Time Series is conditional heteroskedastic.
+
+```{r exercise3_partC}
+tsdisplay((residuals(modg))^2)
+```
+
+ACF plot seems to have 2 non nulls but it can be exponential tail off as well
+PACF plot seems to have 1 non nulls
+
+```{r}
+fitg10 = garchFit(~arma(0,0)+garch(1,0),google,include.mean = FALSE)
+summary(fitg10)
+McLeod.Li.test(y=(fitg10@residuals/fitg10@sigma.t))
+```
+
+Coefficients are signigicant but the p-value of LM Test is very low. Hence we check the McLeod Li test on the stadardised residuals of the plot. At some lags there is still some autocorrelation left, So to model it out we should check the next model by putting GARCH (1,1)
+
+```{r}
+fitg11 = garchFit(~arma(0,0)+garch(1,1),google,include.mean = FALSE)
+summary(fitg11)
+```
+
+Coefficients are signigicant and p-value is also large for LM Test. So we fail to reject the null hypothesis that there is no autocorrelation. McLeod Li test also confirms the same:
+
+```{r}
+McLeod.Li.test(y=(fitg11@residuals/fitg11@sigma.t))
+```
+
+It can be concluded that give time series is a ARMA(0,0) + GARCH(1,1) model.
+
+__Conditional variances and Standardised residuals:__
+
+```{r exercise3_partD , fig.height= 4}
+plot(fitg11@residuals/fitg11@sigma.t,t = 'h',ylab = "Standardized residuals")
+
+plot((fitg11@sigma.t)^2,t = 'l',ylab = "Conditional Variance")
+```
