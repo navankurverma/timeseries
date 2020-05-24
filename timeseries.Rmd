@@ -2,14 +2,23 @@
 title: "Time Series Analysis using R"
 author: "Navankur Verma - navankurverma@gmail.com"
 date: "23/10/2019"
-output: html_document
+output:
+  html_document:
+    fig_caption: yes
+    number_sections: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 2
+    toc_float:
+      smooth_scroll: FALSE
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.width = 9, fig.height = 8)
 ```
 
-## Libraries used:
+# Libraries used:
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 library(forecast)
@@ -28,13 +37,13 @@ library(urca)
 library(fGarch)
 ```
 
-## Analysis on Some random Time Series:
+# Analysis on Some random Time Series:
 
 ```{r read data}
 all_ts =  read.csv("all_ts.csv")
 ```
 
-### Series X
+## Series X
 
 ```{r part (a)}
 tsdisplay(all_ts[,1])
@@ -53,7 +62,7 @@ And PACF just tails off, so p = 0.
 
 So the TS X is ARIMA(0,1,1)
 
-### Series Y
+## Series Y
 
 ```{r part (b)}
 tsdisplay(all_ts[,2])
@@ -65,7 +74,7 @@ PACF is non null for two lags, so p = 2.
 
 So the TS Y is ARIMA(2,0,0)
 
-### Parameter estimation of ARIMA models of Time Series X & Y
+## Parameter estimation of ARIMA models of Time Series X & Y
 
 ```{r part (c)}
 modX = arima(all_ts[,1],order = c(0,1,1),include.mean = FALSE)
@@ -77,7 +86,7 @@ coeftest(modY)
 
 In the estimated arima models of TS X & Y, p-values for each parameter are very less and hence the estimates are statistically significant.
 
-### Series Z
+## Series Z
 
 ```{r part (d)}
 tsdisplay(all_ts[,3])
@@ -86,7 +95,7 @@ tsdisplay(all_ts[,3])
 For TS Z, ACF and PACF both decay exponentially, so it is not required to take its difference, d = 0.
 Both the ACF and PACF are tailing off, so p>0 and q>0. So we have to use build up approach to model this time series.
 
-### Parameter estimation of ARIMA models of Time Series Z
+## Parameter estimation of ARIMA models of Time Series Z
 
 ```{r part (e)}
 modZ11 = arima(all_ts[,3],order = c(1,0,1),include.mean = FALSE)
@@ -100,7 +109,7 @@ coeftest(modZ21)
 
 In ARMA(1,0,2) & ARMA(2,0,1) one of the coefficient (ma2 & ar2 respectively) has large p-value hence we need to drop it and hence we choose the ARMA(1,0,1) model which has significant parameters.
 
-### Validation on the fitted models on Time Series Z
+## Validation on the fitted models on Time Series Z
 
 First checking residuals for the ARIMA(1,0,1):
 
@@ -182,7 +191,7 @@ pacf(residuals(modZ2))
 
 PACF at various lags are non null, so we might need to increase the p in ARIMA.
 
-### Fitting ARIMA with higher number of Auto Regressive Components:
+## Fitting ARIMA with higher number of Auto Regressive Components:
 
 Fitting with ARIMA(10,0,0) on time series Z:
 
@@ -237,7 +246,7 @@ lines(fitted.values(modZ10),type = 'l',col = 'red')
 Plotting the fitted values suggests that model AR10 follows the original timeseries very well. But coeftest also suggests that parameters greater than ar7 are not significant but that is due to overfitting where the estimation becomes unstable and some coefficients are resulting into non significant.
 
 
-## Trend Stationarity:
+# Trend Stationarity:
 
 Time Series:Monthly U.S. average prescription costs for the months 08/1986 - 03/1992
 
@@ -277,7 +286,7 @@ summary(ur.df(prescrip,type = 'trend', lags = 0))
 
 Here we checked if Time series along with being difference stationary, does it also have any trend in it or not.
 
-## Seasonality
+# Seasonality
 
 Time Series: Monthly beer sales in millions of barrels, 01/1975 - 12/1990.
 
@@ -312,7 +321,7 @@ R = beersales - TC - S
 tsdisplay(R)
 ```
 
-## ARIMA-GARCH
+# ARIMA-GARCH
 
 Time Series: Daily returns of the google stock from 08/20/04 - 09/13/06
 
